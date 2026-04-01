@@ -1,0 +1,27 @@
+Table Translation
+Table: Accounts
+	acct_id int PK Auto_increment
+	name varchar(64)
+	isTeacher? bool
+Table: Tests
+	test_id int PK Auto_increment
+	title varchar(32)
+	teacher_id int FK
+Table: Grades
+	test_id int FK
+	student_id int FK
+	grade int (0-100)
+	PK(test_id, student_id)
+Table: Questions
+	test_id int FK(tests)
+	q_number int
+	q_txt varchar(512)
+	PK(test_id, q_number)
+Table: Answers
+	test_id int 
+	q_number int
+	student_id int
+	answer varchar(4080)
+	FK(test_id, q_number) refences(questions)
+	PK(test_id, student_id, q_number)
+	
