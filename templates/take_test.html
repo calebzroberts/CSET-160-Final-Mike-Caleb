@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block title %}Take Test: {{ test.title }}{% endblock %}
+{% block content %}
+  <section class="panel">
+    <h2>{{ test.title }}</h2>
+    <p><strong>Student:</strong> {{ student.name }}</p>
+    <form method="post" class="form-grid">
+      {% for q in questions %}
+        <div class="test-card">
+          <h3>Q{{ loop.index }}: {{ q.text }}</h3>
+          <label><input type="radio" name="q_{{ q.id }}" value="A"> A: {{ q.choice_a }}</label>
+          <label><input type="radio" name="q_{{ q.id }}" value="B"> B: {{ q.choice_b }}</label>
+          <label><input type="radio" name="q_{{ q.id }}" value="C"> C: {{ q.choice_c }}</label>
+          <label><input type="radio" name="q_{{ q.id }}" value="D"> D: {{ q.choice_d }}</label>
+        </div>
+      {% else %}
+        <p>No questions in this test yet.</p>
+      {% endfor %}
+      <button type="submit" class="btn btn-primary">Submit Answers</button>
+    </form>
+  </section>
+{% endblock %}

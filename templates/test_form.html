@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+{% block title %}{{ 'Edit' if mode == 'edit' else 'Create' }} Test{% endblock %}
+{% block content %}
+  <section class="panel">
+    <h2>{{ 'Edit' if mode == 'edit' else 'Create' }} Test</h2>
+    <form method="post" class="form-grid">
+      <label>Title<input type="text" name="title" required value="{{ test.title if test else '' }}" /></label>
+      <label>Teacher
+        <select name="teacher_id" required>
+          <option value="">Select teacher</option>
+          {% for t in teachers %}
+          <option value="{{ t.id }}" {% if test and test.teacher_id == t.id %}selected{% endif %}>{{ t.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <button type="submit" class="btn btn-primary">{{ 'Update' if mode == 'edit' else 'Create' }}</button>
+    </form>
+  </section>
+{% endblock %}

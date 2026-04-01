@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% block title %}Responses{% endblock %}
+{% block content %}
+  <section class="panel">
+    <h2>Responses</h2>
+    <form method="get" class="form-grid">
+      <label>Select Test
+        <select name="test_id">
+          <option value="">--</option>
+          {% for test in tests %}
+          <option value="{{ test.id }}" {% if selected_test and selected_test.id == test.id %}selected{% endif %}>{{ test.title }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <button type="submit" class="btn btn-primary">Load</button>
+    </form>
+
+    {% if selected_test %}
+      <h3>Students who took {{ selected_test.title }}</h3>
+      <table class="data-table">
+        <thead><tr><th>Name</th><th>Submitted At</th><th>Grade</th><th>View</th></tr></thead>
+        <tbody>
+          {% if response_items %}
+            {% for item in response_items %}
+            <tr>
+              <td>{{ item.response.student.name }}</td>
+              <td>{{ item.response.submitted_at.strftime('%Y-%m-%d %H:%M') }}</td>
+              <td>{{ item.grade }}%</td>
+              <td><a class="link-btn" href="{{ url_for('response_detail', test_id=selected_test.id, student_id=item.response.student.id) }}">View</a></td>
+            </tr>
+            {% endfor %}
+          {% else %}
+            <tr><td colspan="4">No students have completed this test yet.</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    {% endif %}
+  </section>
+{% endblock %}

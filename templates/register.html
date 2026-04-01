@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+{% block title %}Register {{ role.title() }}{% endblock %}
+{% block content %}
+  <section class="panel">
+    <h2>Register {{ role.title() }}</h2>
+    <form method="post" class="form-grid">
+      <label>Name<input type="text" name="name" required /></label>
+      <label>Email<input type="email" name="email" required /></label>
+      <button type="submit" class="btn btn-primary">Register {{ role.title() }}</button>
+    </form>
+  </section>
+{% endblock %}

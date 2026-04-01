@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+{% block title %}Take Test{% endblock %}
+{% block content %}
+  <section class="panel">
+    <h2>Who are you?</h2>
+    <form method="post" class="form-grid">
+      <label>Student
+        <select name="student_id" required>
+          <option value="">Select student</option>
+          {% for s in students %}
+          <option value="{{ s.id }}">{{ s.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Test
+        <select name="test_id" required>
+          <option value="">Select test</option>
+          {% for t in tests %}
+          <option value="{{ t.id }}">{{ t.title }} ({{ t.teacher.name if t.teacher else 'Unknown' }})</option>
+          {% endfor %}
+        </select>
+      </label>
+      <button type="submit" class="btn btn-primary">Continue</button>
+    </form>
+  </section>
+{% endblock %}
