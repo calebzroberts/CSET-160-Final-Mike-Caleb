@@ -69,7 +69,7 @@ def calculate_grade(response):
 
 @app.route('/')
 def index():
-    return redirect(url_for('tests'))
+    return render_template('index.html')
 
 
 @app.route('/register/<role>', methods=['GET', 'POST'])
