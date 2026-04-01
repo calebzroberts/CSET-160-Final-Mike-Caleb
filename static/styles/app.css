@@ -23,6 +23,17 @@ body {
   margin: 1rem auto;
 }
 
+.center {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.column {
+    flex-direction: column;
+    gap: 1rem;
+}
+
 .top-nav {
   border: 2px solid var(--accent-dark);
   background: var(--accent-dark);
