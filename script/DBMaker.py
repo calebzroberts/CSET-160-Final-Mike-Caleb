@@ -19,10 +19,14 @@ def db_exists(user:str, password:str, server:str, db_name:str) -> bool:
 
 def create_db(user:str, password:str, server:str, db_name:str):
     """runs the query to create an empty database"""
-    connection_str = f"mysql://{user}:{password}@{server}/{db_name}"
+    connection_str = f"mysql://{user}:{password}@{server}"
     engine = create_engine(connection_str, echo=True, connect_args={"local_infile":1})
     with engine.connect() as conn:
         conn.execute(text(f"CREATE DATABASE {db_name}"))
+    engine.dispose()
+    connection_str = f"mysql://{user}:{password}@{server}/{db_name}"
+    engine = create_engine(connection_str, echo=True, connect_args={"local_infile":1})
+    with engine.connect() as conn:
         _create_tables(conn)
     engine.dispose()
 
