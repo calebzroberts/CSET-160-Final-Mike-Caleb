@@ -28,16 +28,10 @@ class Test(db.Model):
     questions = db.relationship('Question', backref='test', lazy=True, cascade='all, delete-orphan')
     responses = db.relationship('Response', backref='test', lazy=True, cascade='all, delete-orphan')
 
-
 class Question(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     test_id = db.Column(db.Integer, db.ForeignKey('test.id'), nullable=False)
     text = db.Column(db.Text, nullable=False)
-    choice_a = db.Column(db.String(255), nullable=False)
-    choice_b = db.Column(db.String(255), nullable=False)
-    choice_c = db.Column(db.String(255), nullable=False)
-    choice_d = db.Column(db.String(255), nullable=False)
-    correct_choice = db.Column(db.String(1), nullable=False)
     answers = db.relationship('Answer', backref='question', lazy=True, cascade='all, delete-orphan')
 
 
@@ -46,14 +40,14 @@ class Response(db.Model):
     test_id = db.Column(db.Integer, db.ForeignKey('test.id'), nullable=False)
     student_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     submitted_at = db.Column(db.DateTime, default=datetime.now)
+    grade = db.Column(db.String(20), default="Ungraded")
     answers = db.relationship('Answer', backref='response', lazy=True, cascade='all, delete-orphan')
-
 
 class Answer(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     response_id = db.Column(db.Integer, db.ForeignKey('response.id'), nullable=False)
     question_id = db.Column(db.Integer, db.ForeignKey('question.id'), nullable=False)
-    selected_choice = db.Column(db.String(1), nullable=False)
+    content = db.Column(db.Text, nullable=False) 
 
 
 # mock dictionaries (Table translation reference)
@@ -70,9 +64,9 @@ MOCK_TESTS = [
 ]
 
 MOCK_QUESTIONS = [
-    {'test_id': 1, 'q_number': 1, 'q_txt': 'What is the powerhouse of the cell?', 'choice_a': 'Nucleus', 'choice_b': 'Mitochondria', 'choice_c': 'Ribosome', 'choice_d': 'Chloroplast', 'correct': 'B'},
-    {'test_id': 1, 'q_number': 2, 'q_txt': 'DNA stands for?', 'choice_a': 'Deoxyribonucleic acid', 'choice_b': 'Deoxy-rich nutrient acid', 'choice_c': 'Di-ribo nucleotide acid', 'choice_d': 'None of the above', 'correct': 'A'},
-    {'test_id': 2, 'q_number': 1, 'q_txt': 'Who founded Rome according to myth?', 'choice_a': 'Romulus', 'choice_b': 'Remus', 'choice_c': 'Julius Caesar', 'choice_d': 'Nero', 'correct': 'A'},
+    {'test_id': 1, 'q_number': 1, 'q_txt': 'What is the powerhouse of the cell?'},
+    {'test_id': 1, 'q_number': 2, 'q_txt': 'DNA stands for?'},
+    {'test_id': 2, 'q_number': 1, 'q_txt': 'Who founded Rome according to myth?'},
 ]
 
 MOCK_GRADES = [
@@ -82,8 +76,8 @@ MOCK_GRADES = [
 ]
 
 MOCK_ANSWERS = [
-    {'test_id': 1, 'q_number': 1, 'student_id': 3, 'answer': 'B'},
-    {'test_id': 1, 'q_number': 2, 'student_id': 3, 'answer': 'A'},
+    {'test_id': 1, 'q_number': 1, 'student_id': 3, 'answer': 'Mitochondria'},
+    {'test_id': 1, 'q_number': 2, 'student_id': 3, 'answer': 'Deoxyribonucleic acid'},
 ]
 
 with app.app_context():
@@ -101,7 +95,7 @@ with app.app_context():
 
     if not Question.query.first():
         for q in MOCK_QUESTIONS:
-            db.session.add(Question(test_id=q['test_id'], text=q['q_txt'], choice_a=q['choice_a'], choice_b=q['choice_b'], choice_c=q['choice_c'], choice_d=q['choice_d'], correct_choice=q['correct']))
+            db.session.add(Question(test_id=q['test_id'], text=q['q_txt']))
 
     if not Response.query.first():
         for g in MOCK_GRADES:
@@ -113,7 +107,7 @@ with app.app_context():
                 for ans in [x for x in MOCK_ANSWERS if x['test_id'] == g['test_id'] and x['student_id'] == g['student_id']]:
                     question = Question.query.filter_by(test_id=ans['test_id']).order_by(Question.id).offset(ans['q_number']-1).first()
                     if question:
-                        db.session.add(Answer(response_id=response.id, question_id=question.id, selected_choice=ans['answer']))
+                        db.session.add(Answer(response_id=response.id, question_id=question.id, content=ans['answer']))
 
     db.session.commit()
 
@@ -154,8 +148,10 @@ def get_mock_questions(test_id):
     db_questions = Question.query.filter_by(test_id=test_id).all()
     if db_questions:
         return db_questions
-    return [SimpleNamespace(id=(test_id * 100 + q['q_number']), test_id=test_id, q_number=q['q_number'], text=q['q_txt'], choice_a=q['choice_a'], choice_b=q['choice_b'], choice_c=q['choice_c'], choice_d=q['choice_d'], correct_choice=q['correct']) for q in MOCK_QUESTIONS if q['test_id'] == test_id]
-
+    return [SimpleNamespace(id=(test_id * 100 + q['q_number']), 
+        test_id=test_id, 
+        q_number=q['q_number'], 
+        text=q['q_txt']) for q in MOCK_QUESTIONS if q['test_id'] == test_id]
 
 def get_mock_responses_for_test(test_id):
     responses = Response.query.filter_by(test_id=test_id).all()
@@ -165,7 +161,7 @@ def get_mock_responses_for_test(test_id):
     rows = []
     for g in [x for x in MOCK_GRADES if x['test_id'] == test_id]:
         student = get_mock_user(g['student_id'])
-        rows.append(SimpleNamespace(id=999 + g['student_id'], test_id=test_id, student_id=g['student_id'], student=student, submitted_at=datetime.utcnow(), answers=[]))
+        rows.append(SimpleNamespace(id=999 + g['student_id'], test_id=test_id, student_id=g['student_id'], student=student, submitted_at=datetime.now(), answers=[]))
     return rows
 
 
@@ -182,11 +178,7 @@ def get_answers_for(test_id, student_id):
 
 
 def calculate_grade(response):
-    total = len(response.answers)
-    if total == 0:
-        return 0
-    correct = sum(1 for a in response.answers if a.selected_choice == a.question.correct_choice)
-    return round((correct / total) * 100, 1)
+    return response.grade if hasattr(response, 'grade') else "Ungraded"
 
 
 @app.route('/')
@@ -194,18 +186,16 @@ def index():
     return render_template('index.html')
 
 
-@app.route('/register/<role>', methods=['GET', 'POST'])
-def register(role):
-    if role not in ['teacher', 'student']:
-        flash('Invalid role', 'error')
-        return redirect(url_for('index'))
-
+@app.route('/register', methods=['GET', 'POST'])
+def register():
     if request.method == 'POST':
         name = request.form.get('name').strip()
         email = request.form.get('email').strip()
-        if not name or not email:
-            flash('Name and email are required.', 'error')
-            return redirect(url_for('register', role=role))
+        role = request.form.get('role')
+
+        if not name or not email or not role:
+            flash('Name, email, and role are required.', 'error')
+            return redirect(url_for('register'))
 
         user = User(name=name, email=email, role=role)
         db.session.add(user)
@@ -213,17 +203,21 @@ def register(role):
         flash(f'{role.title()} registered successfully.', 'success')
         return redirect(url_for('accounts'))
 
-    return render_template('register.html', role=role)
+    return render_template('register.html')
 
 
 @app.route('/accounts')
 def accounts():
     role = request.args.get('role', 'all')
+
     all_users = get_all_users()
+
     if role in ['student', 'teacher']:
         users = [u for u in all_users if u.role == role]
     else:
         users = all_users
+        role='all'
+        
     return render_template('accounts.html', users=users, selected_role=role)
 
 
@@ -285,18 +279,12 @@ def test_editor(test_id):
         return redirect(url_for('tests'))
     if request.method == 'POST':
         text = request.form.get('text', '').strip()
-        a = request.form.get('choice_a', '').strip()
-        b = request.form.get('choice_b', '').strip()
-        c = request.form.get('choice_c', '').strip()
-        d = request.form.get('choice_d', '').strip()
-        correct = request.form.get('correct_choice')
-        if not all([text, a, b, c, d, correct]):
-            flash('All fields are required for each question.', 'error')
+        if not text:
+            flash('Question text is required.', 'error')
             return redirect(url_for('test_editor', test_id=test_id))
-        q = Question(test_id=test_id, text=text, choice_a=a, choice_b=b, choice_c=c, choice_d=d, correct_choice=correct)
+        q = Question(test_id=test_id, text=text) 
         db.session.add(q)
         db.session.commit()
-        flash('Question added.', 'success')
         return redirect(url_for('test_editor', test_id=test_id))
 
     return render_template('test_editor.html', test=test)
@@ -315,13 +303,15 @@ def delete_question(test_id, question_id):
 def edit_question(test_id, question_id):
     question = Question.query.get_or_404(question_id)
     if request.method == 'POST':
-        question.text = request.form.get('text', '').strip()
-        question.choice_a = request.form.get('choice_a', '').strip()
-        question.choice_b = request.form.get('choice_b', '').strip()
-        question.choice_c = request.form.get('choice_c', '').strip()
-        question.choice_d = request.form.get('choice_d', '').strip()
-        question.correct_choice = request.form.get('correct_choice')
+        text = request.form.get('text', '').strip()
+        if not text:
+            flash('Question text is required.', 'error')
+            return redirect(url_for('test_editor', test_id=test_id))
+        
+        # CHANGE: Update the existing question object instead of creating a new one
+        question.text = text
         db.session.commit()
+        
         flash('Question updated.', 'success')
         return redirect(url_for('test_editor', test_id=test_id))
 
@@ -361,15 +351,13 @@ def take_test(test_id, student_id):
         db.session.commit()
 
         for question in questions:
-            selected = request.form.get(f'q_{question.id}', '')
-            if not selected:
-                selected = ''
-            answer = Answer(response_id=response.id, question_id=question.id, selected_choice=selected)
+            submitted_text = request.form.get(f'q_{question.id}', '').strip()
+            answer = Answer(response_id=response.id, question_id=question.id, content=submitted_text)
             db.session.add(answer)
 
         db.session.commit()
 
-        flash('Test submitted. Your grade: ' + str(calculate_grade(response)) + '%', 'success')
+        flash('Test submitted. Your grade: ' + str(calculate_grade(response)), 'success')
         return redirect(url_for('responses', test_id=test_id))
 
     return render_template('take_test.html', student=student, test=test_obj, questions=questions)
@@ -402,7 +390,6 @@ def response_detail(test_id, student_id):
         grade = calculate_grade(response)
         return render_template('response_detail.html', test=selected_test, student=student, response=response, answers=answers, grade=grade)
 
-    # use mock answer fallback
     mock_answers = get_answers_for(test_id, student_id)
     if not mock_answers:
         flash('No response found for this student/test.', 'error')
@@ -412,10 +399,11 @@ def response_detail(test_id, student_id):
     for a in mock_answers:
         question = next((q for q in get_mock_questions(test_id) if q.q_number == a['q_number']), None)
         if question is not None:
-            fake_answer_objects.append(SimpleNamespace(question=question, selected_choice=a['answer']))
+            
+            fake_answer_objects.append(SimpleNamespace(question=question, content=a['answer']))
 
     grade = get_grade_for(test_id, student_id) or 0
-    fake_response = SimpleNamespace(test_id=test_id, student_id=student_id, submitted_at=datetime.utcnow(), answers=fake_answer_objects)
+    fake_response = SimpleNamespace(test_id=test_id, student_id=student_id, submitted_at=datetime.now(), answers=fake_answer_objects)
     return render_template('response_detail.html', test=selected_test, student=student, response=fake_response, answers=fake_answer_objects, grade=grade)
 
 
@@ -434,6 +422,15 @@ def student_detail(student_id):
         summary.append({'test': r.test, 'grade': calculate_grade(r), 'submitted_at': r.submitted_at})
     return render_template('student_detail.html', student=student, summary=summary)
 
+@app.route('/update_grade/<int:response_id>', methods=['POST'])
+def update_grade(response_id):
+    response = Response.query.get_or_404(response_id)
+    new_grade = request.form.get('grade')
+    if new_grade:
+        response.grade = new_grade
+        db.session.commit()
+        flash('Grade updated!', 'success')
+    return redirect(url_for('responses', test_id=response.test_id))
 
 if __name__ == '__main__':
     app.run(debug=True)

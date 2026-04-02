@@ -1,22 +1,20 @@
 {% extends 'base.html' %}
 {% block title %}Response Details{% endblock %}
 {% block content %}
-  <section class="panel">
-    <h2>{{ student.name }} - {{ test.title }}</h2>
-    <p>Submitted: {{ response.submitted_at.strftime('%Y-%m-%d %H:%M') }}</p>
-    <table class="data-table">
-      <thead><tr><th>Question</th><th>Selected</th><th>Correct</th><th>Status</th></tr></thead>
-      <tbody>
-        {% for answer in answers %}
-        <tr>
-          <td>{{ answer.question.text }}</td>
-          <td>{{ answer.selected_choice }}</td>
-          <td>{{ answer.question.correct_choice }}</td>
-          <td class="{{ 'success' if answer.selected_choice == answer.question.correct_choice else 'error' }}">{{ 'Correct' if answer.selected_choice == answer.question.correct_choice else 'Wrong' }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    <p><strong>Grade:</strong> {{ grade }}%</p>
-  </section>
+	<section class="panel">
+		<h2>{{ student.name }} - {{ test.title }}</h2>
+		<p>Submitted: {{ response.submitted_at.strftime('%Y-%m-%d %H:%M') }}</p>
+		<table class="data-table">
+			<thead><tr><th>Question</th><th>Answer</th></tr></thead>
+			<tbody>
+				{% for answer in answers %}
+				<tr>
+					<td>{{ answer.question.text }}</td>
+					<td>{{ answer.content }}</td>
+				</tr>
+				{% endfor %}
+			</tbody>
+		</table>
+		<p><strong>Grade:</strong> {{ grade }}</p>
+	</section>
 {% endblock %}
