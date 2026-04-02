@@ -2,6 +2,18 @@ from flask import Flask, render_template, request, redirect, url_for, flash
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 from types import SimpleNamespace
+from script import DBMaker as make_db
+
+sql_user = "root"
+sql_pass = "cset155"
+sql_server = "localhost"
+sql_db_name = "testapp"
+
+try:
+    if not make_db.db_exists(sql_user, sql_pass, sql_server, sql_db_name):
+        make_db.create_db(sql_user, sql_pass, sql_server, sql_db_name)
+except Exception as e:
+    print(e)
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'devkey'
