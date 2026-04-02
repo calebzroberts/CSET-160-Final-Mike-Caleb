@@ -132,101 +132,12 @@ def get_questions_for_test(test_id):
         ))
     return questions
 
-with app.app_context():
-    db.create_all()
-
-    if not User.query.first():
-        for acc in MOCK_ACCOUNTS:
-            role = 'teacher' if acc['isTeacher'] else 'student'
-            u = User(id=acc['acct_id'], name=acc['name'], role=role)
-            db.session.add(u)
-
-    if not Test.query.first():
-        for t in MOCK_TESTS:
-            db.session.add(Test(id=t['test_id'], title=t['title'], teacher_id=t['teacher_id']))
-
-    if not Question.query.first():
-        for q in MOCK_QUESTIONS:
-            db.session.add(Question(test_id=q['test_id'], text=q['q_txt']))
-
-    if not Response.query.first():
-        for g in MOCK_GRADES:
-            student = User.query.filter_by(id=g['student_id']).first()
-            if student:
-                response = Response(test_id=g['test_id'], student_id=g['student_id'])
-                db.session.add(response)
-                db.session.flush()
-                for ans in [x for x in MOCK_ANSWERS if x['test_id'] == g['test_id'] and x['student_id'] == g['student_id']]:
-                    question = Question.query.filter_by(test_id=ans['test_id']).order_by(Question.id).offset(ans['q_number']-1).first()
-                    if question:
-                        db.session.add(Answer(response_id=response.id, question_id=question.id, content=ans['answer']))
-
-    db.session.commit()
-
-
-
-def get_mock_user(acct_id):
-    row = next((x for x in MOCK_ACCOUNTS if x['acct_id'] == acct_id), None)
-    if not row:
-        return None
-    return SimpleNamespace(id=row['acct_id'], name=row['name'], role='teacher' if row['isTeacher'] else 'student')
-
-
-def get_all_users():
-    users = User.query.all()
-    if users:
-        return users
-    return [get_mock_user(r['acct_id']) for r in MOCK_ACCOUNTS]
-
-
-def get_all_tests():
-    tests = Test.query.all()
-    if tests:
-        return tests
-    return [SimpleNamespace(id=x['test_id'], title=x['title'], teacher=get_mock_user(x['teacher_id']), questions=get_mock_questions(x['test_id']), responses=get_mock_responses_for_test(x['test_id'])) for x in MOCK_TESTS]
-
-
-def get_test_obj(test_id):
-    t = Test.query.get(test_id)
-    if t:
-        return t
-    row = next((x for x in MOCK_TESTS if x['test_id'] == test_id), None)
-    if not row:
-        return None
-    return SimpleNamespace(id=row['test_id'], title=row['title'], teacher=get_mock_user(row['teacher_id']), questions=get_mock_questions(test_id), responses=get_mock_responses_for_test(test_id))
-
-
-def get_mock_questions(test_id):
-    db_questions = Question.query.filter_by(test_id=test_id).all()
-    if db_questions:
-        return db_questions
-    return [SimpleNamespace(id=(test_id * 100 + q['q_number']), 
-        test_id=test_id, 
-        q_number=q['q_number'], 
-        text=q['q_txt']) for q in MOCK_QUESTIONS if q['test_id'] == test_id]
-
-def get_mock_responses_for_test(test_id):
-    responses = Response.query.filter_by(test_id=test_id).all()
-    if responses:
-        return responses
-    # fallback simple mock with grade tracking from MOCK_GRADES
-    rows = []
-    for g in [x for x in MOCK_GRADES if x['test_id'] == test_id]:
-        student = get_mock_user(g['student_id'])
-        rows.append(SimpleNamespace(id=999 + g['student_id'], test_id=test_id, student_id=g['student_id'], student=student, submitted_at=datetime.now(), answers=[]))
-    return rows
-
 
 def get_grade_for(test_id, student_id):
     g = next((x for x in MOCK_GRADES if x['test_id'] == test_id and x['student_id'] == student_id), None)
     if g:
         return g['grade']
     return None
-
-
-def get_answers_for(test_id, student_id):
-    filtered = [x for x in MOCK_ANSWERS if x['test_id'] == test_id and x['student_id'] == student_id]
-    return filtered
 
 
 def calculate_grade(response):
@@ -242,13 +153,14 @@ def index():
 def register():
     if request.method == 'POST':
         name = request.form.get('name').strip()
+        email = request.form.get('email').strip()
         role = request.form.get('role')
 
-        if not name or not role:
-            flash('Name and role are required.', 'error')
+        if not name or not email or not role:
+            flash('Name, email, and role are required.', 'error')
             return redirect(url_for('register'))
 
-        user = User(name=name, role=role)
+        user = User(name=name, email=email, role=role)
         db.session.add(user)
         db.session.commit()
         flash(f'{role.title()} registered successfully.', 'success')
@@ -260,39 +172,41 @@ def register():
 @app.route('/accounts')
 def accounts():
     role = request.args.get('role', 'all')
-
     all_users = get_all_users()
 
     if role in ['student', 'teacher']:
         users = [u for u in all_users if u.role == role]
     else:
         users = all_users
-        role='all'
-        
-    return render_template('accounts.html', users=users, selected_role=role)
+        role = 'all'
 
+    return render_template('accounts.html', users=users, selected_role=role)
 
 @app.route('/tests')
 def tests():
-    tests = Test.query.order_by(Test.created_at.desc()).all()
-    if not tests:
-        tests = get_all_tests()
+    tests = get_all_tests()
     return render_template('tests.html', tests=tests)
 
 
 @app.route('/tests/create', methods=['GET', 'POST'])
 def create_test():
-    teachers = User.query.filter_by(role='teacher').all()
+    teachers = [u for u in get_all_users() if u.role == 'teacher']
+
     if request.method == 'POST':
         title = request.form.get('title').strip()
         teacher_id = request.form.get('teacher_id')
+
         if not title or not teacher_id:
             flash('Test title and teacher are required.', 'error')
             return redirect(url_for('create_test'))
 
-        test = Test(title=title, teacher_id=int(teacher_id))
-        db.session.add(test)
-        db.session.commit()
+        with engine.connect() as conn:
+            conn.execute(
+                text("INSERT INTO tests(title, teacher_id) VALUES(:title, :teacher_id)"),
+                {"title": title, "teacher_id": int(teacher_id)}
+            )
+            conn.commit()
+
         flash('Test created successfully.', 'success')
         return redirect(url_for('tests'))
 
@@ -315,9 +229,13 @@ def edit_test(test_id):
 
 @app.route('/tests/<int:test_id>/delete', methods=['POST'])
 def delete_test(test_id):
-    test = Test.query.get_or_404(test_id)
-    db.session.delete(test)
-    db.session.commit()
+    with engine.connect() as conn:
+        conn.execute(text("DELETE FROM answers WHERE test_id = :test_id"), {"test_id": test_id})
+        conn.execute(text("DELETE FROM grades WHERE test_id = :test_id"), {"test_id": test_id})
+        conn.execute(text("DELETE FROM questions WHERE test_id = :test_id"), {"test_id": test_id})
+        conn.execute(text("DELETE FROM tests WHERE test_id = :test_id"), {"test_id": test_id})
+        conn.commit()
+
     flash('Test deleted.', 'success')
     return redirect(url_for('tests'))
 
@@ -328,24 +246,52 @@ def test_editor(test_id):
     if not test:
         flash('Test not found.', 'error')
         return redirect(url_for('tests'))
+
+    test.questions = get_questions_for_test(test_id)
+
     if request.method == 'POST':
-        text = request.form.get('text', '').strip()
-        if not text:
+        question_text = request.form.get('text', '').strip()
+        if not question_text:
             flash('Question text is required.', 'error')
             return redirect(url_for('test_editor', test_id=test_id))
-        q = Question(test_id=test_id, text=text) 
-        db.session.add(q)
-        db.session.commit()
+
+        with engine.connect() as conn:
+            next_q = conn.execute(
+                text("""
+                    SELECT COALESCE(MAX(q_number), 0) + 1
+                    FROM questions
+                    WHERE test_id = :test_id
+                """),
+                {"test_id": test_id}
+            ).scalar()
+
+            conn.execute(
+                text("""
+                    INSERT INTO questions(test_id, q_number, q_txt)
+                    VALUES(:test_id, :q_number, :q_txt)
+                """),
+                {"test_id": test_id, "q_number": next_q, "q_txt": question_text}
+            )
+            conn.commit()
+
         return redirect(url_for('test_editor', test_id=test_id))
 
     return render_template('test_editor.html', test=test)
 
 
-@app.route('/tests/<int:test_id>/questions/<int:question_id>/delete', methods=['POST'])
-def delete_question(test_id, question_id):
-    question = Question.query.get_or_404(question_id)
-    db.session.delete(question)
-    db.session.commit()
+@app.route('/tests/<int:test_id>/questions/<int:q_number>/delete', methods=['POST'])
+def delete_question(test_id, q_number):
+    with engine.connect() as conn:
+        conn.execute(
+            text("DELETE FROM answers WHERE test_id = :test_id AND q_number = :q_number"),
+            {"test_id": test_id, "q_number": q_number}
+        )
+        conn.execute(
+            text("DELETE FROM questions WHERE test_id = :test_id AND q_number = :q_number"),
+            {"test_id": test_id, "q_number": q_number}
+        )
+        conn.commit()
+
     flash('Question deleted.', 'success')
     return redirect(url_for('test_editor', test_id=test_id))
 
@@ -373,7 +319,7 @@ def edit_question(test_id, question_id):
 def take_test_select():
     students = User.query.filter_by(role='student').all()
     if not students:
-        students = [get_mock_user(u['acct_id']) for u in MOCK_ACCOUNTS if not u['isTeacher']]
+        students = [get_mock_user(u['acct_id']) for u in get_all_users() if not u['isTeacher']]
     tests_list = get_all_tests()
     if request.method == 'POST':
         student_id = request.form.get('student_id')
