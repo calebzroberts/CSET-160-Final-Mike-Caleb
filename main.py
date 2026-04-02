@@ -26,7 +26,6 @@ db = SQLAlchemy(app)
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False)
-    email = db.Column(db.String(120), nullable=False)
     role = db.Column(db.String(20), nullable=False)
     tests = db.relationship('Test', backref='teacher', lazy=True)
     responses = db.relationship('Response', backref='student', lazy=True)
@@ -64,10 +63,10 @@ class Answer(db.Model):
 
 # mock dictionaries (Table translation reference)
 MOCK_ACCOUNTS = [
-    {'acct_id': 1, 'name': 'Ms. Carter', 'isTeacher': True, 'email': 'carter@school.edu'},
-    {'acct_id': 2, 'name': 'Mr. Lee', 'isTeacher': True, 'email': 'lee@school.edu'},
-    {'acct_id': 3, 'name': 'Ava Williams', 'isTeacher': False, 'email': 'ava@school.edu'},
-    {'acct_id': 4, 'name': 'Noah Singh', 'isTeacher': False, 'email': 'noah@school.edu'},
+    {'acct_id': 1, 'name': 'Ms. Carter', 'isTeacher': True},
+    {'acct_id': 2, 'name': 'Mr. Lee', 'isTeacher': True},
+    {'acct_id': 3, 'name': 'Ava Williams', 'isTeacher': False},
+    {'acct_id': 4, 'name': 'Noah Singh', 'isTeacher': False},
 ]
 
 MOCK_TESTS = [
@@ -98,7 +97,7 @@ with app.app_context():
     if not User.query.first():
         for acc in MOCK_ACCOUNTS:
             role = 'teacher' if acc['isTeacher'] else 'student'
-            u = User(id=acc['acct_id'], name=acc['name'], email=acc['email'], role=role)
+            u = User(id=acc['acct_id'], name=acc['name'], role=role)
             db.session.add(u)
 
     if not Test.query.first():
@@ -129,7 +128,7 @@ def get_mock_user(acct_id):
     row = next((x for x in MOCK_ACCOUNTS if x['acct_id'] == acct_id), None)
     if not row:
         return None
-    return SimpleNamespace(id=row['acct_id'], name=row['name'], email=row.get('email', ''), role='teacher' if row['isTeacher'] else 'student')
+    return SimpleNamespace(id=row['acct_id'], name=row['name'], role='teacher' if row['isTeacher'] else 'student')
 
 
 def get_all_users():
@@ -202,14 +201,13 @@ def index():
 def register():
     if request.method == 'POST':
         name = request.form.get('name').strip()
-        email = request.form.get('email').strip()
         role = request.form.get('role')
 
-        if not name or not email or not role:
-            flash('Name, email, and role are required.', 'error')
+        if not name or not role:
+            flash('Name and role are required.', 'error')
             return redirect(url_for('register'))
 
-        user = User(name=name, email=email, role=role)
+        user = User(name=name, role=role)
         db.session.add(user)
         db.session.commit()
         flash(f'{role.title()} registered successfully.', 'success')
