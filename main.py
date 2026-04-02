@@ -1,6 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, flash
-from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime
+from sqlalchemy import create_engine, text
 from types import SimpleNamespace
 from script import DBMaker as make_db
 
@@ -17,79 +16,121 @@ except Exception as e:
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'devkey'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///project.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-db = SQLAlchemy(app)
+connection_str = f"mysql://{sql_user}:{sql_pass}@{sql_server}/{sql_db_name}"
+engine = create_engine(connection_str, echo=True)
 
+def get_all_users():
+    query = text("""
+        SELECT acct_id, name, is_teacher
+        FROM accounts
+        ORDER BY acct_id
+    """)
+    with engine.connect() as conn:
+        rows = conn.execute(query).mappings().all()
 
-class User(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(120), nullable=False)
-    role = db.Column(db.String(20), nullable=False)
-    tests = db.relationship('Test', backref='teacher', lazy=True)
-    responses = db.relationship('Response', backref='student', lazy=True)
+    users = []
+    for row in rows:
+        users.append(SimpleNamespace(
+            id=row["acct_id"],
+            name=row["name"],
+            email="",  # dbmaker schema does not have email
+            role="teacher" if row["is_teacher"] else "student"
+        ))
+    return users
 
+def get_user(acct_id):
+    query = text("""
+        SELECT acct_id, name, is_teacher
+        FROM accounts
+        WHERE acct_id = :acct_id
+    """)
+    with engine.connect() as conn:
+        row = conn.execute(query, {"acct_id": acct_id}).mappings().first()
 
-class Test(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(200), nullable=False)
-    teacher_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.now)
-    questions = db.relationship('Question', backref='test', lazy=True, cascade='all, delete-orphan')
-    responses = db.relationship('Response', backref='test', lazy=True, cascade='all, delete-orphan')
+    if not row:
+        return None
 
-class Question(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    test_id = db.Column(db.Integer, db.ForeignKey('test.id'), nullable=False)
-    text = db.Column(db.Text, nullable=False)
-    answers = db.relationship('Answer', backref='question', lazy=True, cascade='all, delete-orphan')
+    return SimpleNamespace(
+        id=row["acct_id"],
+        name=row["name"],
+        email="",
+        role="teacher" if row["is_teacher"] else "student"
+    )
 
+def get_all_tests():
+    query = text("""
+        SELECT t.test_id, t.title, t.teacher_id, a.name AS teacher_name
+        FROM tests t
+        LEFT JOIN accounts a ON t.teacher_id = a.acct_id
+        ORDER BY t.test_id DESC
+    """)
+    with engine.connect() as conn:
+        rows = conn.execute(query).mappings().all()
 
-class Response(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    test_id = db.Column(db.Integer, db.ForeignKey('test.id'), nullable=False)
-    student_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    submitted_at = db.Column(db.DateTime, default=datetime.now)
-    grade = db.Column(db.String(20), default="Ungraded")
-    answers = db.relationship('Answer', backref='response', lazy=True, cascade='all, delete-orphan')
+    tests = []
+    for row in rows:
+        teacher = SimpleNamespace(
+            id=row["teacher_id"],
+            name=row["teacher_name"],
+            email="",
+            role="teacher"
+        ) if row["teacher_id"] else None
 
-class Answer(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    response_id = db.Column(db.Integer, db.ForeignKey('response.id'), nullable=False)
-    question_id = db.Column(db.Integer, db.ForeignKey('question.id'), nullable=False)
-    content = db.Column(db.Text, nullable=False) 
+        tests.append(SimpleNamespace(
+            id=row["test_id"],
+            title=row["title"],
+            teacher_id=row["teacher_id"],
+            teacher=teacher
+        ))
+    return tests
 
+def get_test_obj(test_id):
+    query = text("""
+        SELECT t.test_id, t.title, t.teacher_id, a.name AS teacher_name
+        FROM tests t
+        LEFT JOIN accounts a ON t.teacher_id = a.acct_id
+        WHERE t.test_id = :test_id
+    """)
+    with engine.connect() as conn:
+        row = conn.execute(query, {"test_id": test_id}).mappings().first()
 
-# mock dictionaries (Table translation reference)
-MOCK_ACCOUNTS = [
-    {'acct_id': 1, 'name': 'Ms. Carter', 'isTeacher': True},
-    {'acct_id': 2, 'name': 'Mr. Lee', 'isTeacher': True},
-    {'acct_id': 3, 'name': 'Ava Williams', 'isTeacher': False},
-    {'acct_id': 4, 'name': 'Noah Singh', 'isTeacher': False},
-]
+    if not row:
+        return None
 
-MOCK_TESTS = [
-    {'test_id': 1, 'title': 'Biology 101', 'teacher_id': 1},
-    {'test_id': 2, 'title': 'World History', 'teacher_id': 2},
-]
+    teacher = SimpleNamespace(
+        id=row["teacher_id"],
+        name=row["teacher_name"],
+        email="",
+        role="teacher"
+    ) if row["teacher_id"] else None
 
-MOCK_QUESTIONS = [
-    {'test_id': 1, 'q_number': 1, 'q_txt': 'What is the powerhouse of the cell?'},
-    {'test_id': 1, 'q_number': 2, 'q_txt': 'DNA stands for?'},
-    {'test_id': 2, 'q_number': 1, 'q_txt': 'Who founded Rome according to myth?'},
-]
+    return SimpleNamespace(
+        id=row["test_id"],
+        title=row["title"],
+        teacher_id=row["teacher_id"],
+        teacher=teacher
+    )
 
-MOCK_GRADES = [
-    {'test_id': 1, 'student_id': 3, 'grade': 92},
-    {'test_id': 1, 'student_id': 4, 'grade': 81},
-    {'test_id': 2, 'student_id': 3, 'grade': 88},
-]
+def get_questions_for_test(test_id):
+    query = text("""
+        SELECT test_id, q_number, q_txt
+        FROM questions
+        WHERE test_id = :test_id
+        ORDER BY q_number
+    """)
+    with engine.connect() as conn:
+        rows = conn.execute(query, {"test_id": test_id}).mappings().all()
 
-MOCK_ANSWERS = [
-    {'test_id': 1, 'q_number': 1, 'student_id': 3, 'answer': 'Mitochondria'},
-    {'test_id': 1, 'q_number': 2, 'student_id': 3, 'answer': 'Deoxyribonucleic acid'},
-]
+    questions = []
+    for row in rows:
+        questions.append(SimpleNamespace(
+            id=row["q_number"],      # use q_number as the id in templates
+            test_id=row["test_id"],
+            q_number=row["q_number"],
+            text=row["q_txt"]
+        ))
+    return questions
 
 with app.app_context():
     db.create_all()
