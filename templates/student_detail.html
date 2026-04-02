@@ -1,24 +1,24 @@
 {% extends 'base.html' %}
 {% block title %}{{ student.name }}{% endblock %}
 {% block content %}
-  <section class="panel">
-    <h2>{{ student.name }} - Summary</h2>
-    <table class="data-table">
-      <thead><tr><th>Test</th><th>Grade</th><th>Submitted</th><th>View</th></tr></thead>
-      <tbody>
-        {% if summary %}
-          {% for item in summary %}
-          <tr>
-            <td>{{ item.test.title }}</td>
-            <td>{{ item.grade }}%</td>
-            <td>{{ item.submitted_at.strftime('%Y-%m-%d %H:%M') }}</td>
-            <td><a class="link-btn" href="{{ url_for('response_detail', test_id=item.test.id, student_id=student.id) }}">View</a></td>
-          </tr>
-          {% endfor %}
-        {% else %}
-          <tr><td colspan="4">No tests taken yet.</td></tr>
-        {% endif %}
-      </tbody>
-    </table>
-  </section>
+	<section class="panel">
+		<h2>{{ student.name }} - Summary</h2>
+		<table class="data-table">
+			<thead><tr><th>Test</th><th>Grade</th><th>Submitted</th><th>View</th></tr></thead>
+			<tbody>
+				{% if summary %}
+				{% for item in summary %}
+				<tr>
+					<td>{{ item.test.title }}</td>
+					<td>{{ item.grade }}</td>
+					<td>{{ item.submitted_at.strftime('%Y-%m-%d %H:%M') }}</td>
+					<td><a class="link-btn" href="{{ url_for('response_detail', test_id=item.test.id, student_id=student.id) }}">View</a></td>
+				</tr>
+				{% endfor %}
+				{% else %}
+				<tr><td colspan="4">No tests taken yet.</td></tr>
+				{% endif %}
+			</tbody>
+		</table>
+	</section>
 {% endblock %}

@@ -1,35 +1,35 @@
 {% extends 'base.html' %}
 {% block title %}Tests Dashboard{% endblock %}
 {% block content %}
-  <section class="panel">
+    <section class="panel">
     <div class="panel-head">
-      <h2>Tests Dashboard</h2>
-      <a href="{{ url_for('create_test') }}" class="btn btn-secondary">Create Test</a>
+        <h2>Tests Dashboard</h2>
+        <a href="{{ url_for('create_test') }}" class="btn btn-secondary">Create Test</a>
     </div>
     <table class="data-table">
-      <thead>
+        <thead>
         <tr><th>ID</th><th>Title</th><th>Teacher</th><th>Questions</th><th>Completed by</th><th>Actions</th></tr>
-      </thead>
-      <tbody>
+        </thead>
+        <tbody>
         {% for test in tests %}
         <tr>
-          <td>{{ test.id }}</td>
-          <td>{{ test.title }}</td>
-          <td>{{ test.teacher.name if test.teacher else 'None' }}</td>
-          <td>{{ test.questions|length }}</td>
-          <td>{{ test.responses|length }}</td>
-          <td>
-            <a class="link-btn" href="{{ url_for('test_editor', test_id=test.id) }}">Editor</a>
-            <a class="link-btn" href="{{ url_for('edit_test', test_id=test.id) }}">Edit</a>
+            <td>{{ test.id }}</td>
+            <td>{{ test.title }}</td>
+            <td>{{ test.teacher.name if test.teacher else 'None' }}</td>
+            <td>{{ test.questions|length }}</td>
+            <td>{{ test.responses|length }}</td>
+            <td>
+            <a class="link-btn" href="{{ url_for('test_editor', test_id=test.id) }}">Edit Questions</a>
+            <a class="link-btn" href="{{ url_for('edit_test', test_id=test.id) }}">Edit Title/Teacher</a>
             <form action="{{ url_for('delete_test', test_id=test.id) }}" method="post" class="inline-form">
-              <button type="submit" class="btn btn-danger">Delete</button>
+                <button type="submit" class="btn btn-danger">Delete</button>
             </form>
-          </td>
+            </td>
         </tr>
         {% else %}
         <tr><td colspan="6">No tests available.</td></tr>
         {% endfor %}
-      </tbody>
+        </tbody>
     </table>
-  </section>
+    </section>
 {% endblock %}

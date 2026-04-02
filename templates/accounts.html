@@ -1,26 +1,41 @@
 {% extends 'base.html' %}
 {% block title %}Accounts{% endblock %}
 {% block content %}
-  <section class="panel">
-    <h2>Accounts</h2>
-    <div class="filters">
-      <a class="filter-link" href="{{ url_for('accounts', role='all') }}">All</a>
-      <a class="filter-link" href="{{ url_for('accounts', role='student') }}">Students</a>
-      <a class="filter-link" href="{{ url_for('accounts', role='teacher') }}">Teachers</a>
-      <a class="filter-link" href="{{ url_for('register', role='student') }}">New Student</a>
-      <a class="filter-link" href="{{ url_for('register', role='teacher') }}">New Teacher</a>
-    </div>
-    <table class="data-table">
-      <thead>
-        <tr><th>ID</th><th>Name</th><th>Email</th><th>Role</th></tr>
-      </thead>
-      <tbody>
-        {% for user in users %}
-        <tr><td>{{ user.id }}</td><td>{{ user.name }}</td><td>{{ user.email }}</td><td>{{ user.role }}</td></tr>
-        {% else %}
-        <tr><td colspan="4">No users found.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </section>
+	<section class="panel">
+		<h2>Accounts</h2>
+		<a class="filter-link" href="{{ url_for('register') }}">New Teacher/Student</a>
+
+		<div class="filters">
+			<select class="filter-dropdown" onchange="location = this.value;">
+				<option value="{{ url_for('accounts', role='all') }}" {% if selected_role == 'all' %}selected{% endif %}>
+					All Users
+				</option>
+				<option value="{{ url_for('accounts', role='student') }}" {% if selected_role == 'student' %}selected{% endif %}>
+					Students
+				</option>
+				<option value="{{ url_for('accounts', role='teacher') }}" {% if selected_role == 'teacher' %}selected{% endif %}>
+					Teachers
+				</option>
+			</select>
+		</div>
+		<table class="data-table">
+			<thead>
+				<tr><th>ID</th><th>Name</th><th>Email</th><th>Role</th></tr>
+			</thead>
+			<tbody>
+				{% for user in users %}
+				<tr>
+					<td>{{ user.id }}</td>
+					<td>{{ user.name }}</td>
+					<td>{{ user.email }}</td>
+					<td>{{ user.role }}</td>
+				</tr>
+				{% else %}
+				<tr>
+					<td colspan="4">No users found.</td>
+				</tr>
+				{% endfor %}
+			</tbody>
+		</table>
+	</section>
 {% endblock %}

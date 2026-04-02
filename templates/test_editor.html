@@ -1,52 +1,40 @@
 {% extends 'base.html' %}
 {% block title %}Test Editor{% endblock %}
 {% block content %}
-  <section class="panel">
+<section class="panel">
     <div class="panel-head">
-      <h2>Editing: {{ test.title }}</h2>
-      <span>Teacher: {{ test.teacher.name if test.teacher else 'None' }}</span>
+    <h2>Editing: {{ test.title }}</h2>
+    <span>Teacher: {{ test.teacher.name if test.teacher else 'None' }}</span>
     </div>
     <article class="question-area">
-      <h3>Questions</h3>
-      {% if test.questions %}
-      <ul class="question-list">
+    <h3>Questions</h3>
+    {% if test.questions %}
+    <ul class="question-list">
         {% for q in test.questions %}
         <li class="question-item">
-          <strong>{{ loop.index }}. {{ q.text }}</strong>
-          <div>Answer: {{ q.correct_choice }}</div>
-          <div class="question-actions">
+        <strong>{{ loop.index }}. {{ q.text }}</strong>
+        <div class="question-actions">
             <a href="{{ url_for('edit_question', test_id=test.id, question_id=q.id) }}" class="btn btn-secondary">Edit</a>
             <form action="{{ url_for('delete_question', test_id=test.id, question_id=q.id) }}" method="post" class="inline-form">
-              <button type="submit" class="btn btn-danger">Delete</button>
+            <button type="submit" class="btn btn-danger">Delete</button>
             </form>
-          </div>
+        </div>
         </li>
         {% endfor %}
-      </ul>
-      {% else %}
-      <p>No questions yet.</p>
-      {% endif %}
+    </ul>
+    {% else %}
+    <p>No questions yet.</p>
+    {% endif %}
     </article>
 
     <section class="question-form">
-      <h3>Add Question</h3>
-      <form method="post" class="form-grid">
+    <h3>Add Question</h3>
+    <form method="post" class="form-grid">
         <label>Question text<textarea name="text" rows="3" required></textarea></label>
-        <label>Choice A<input type="text" name="choice_a" required></label>
-        <label>Choice B<input type="text" name="choice_b" required></label>
-        <label>Choice C<input type="text" name="choice_c" required></label>
-        <label>Choice D<input type="text" name="choice_d" required></label>
-        <label>Correct choice
-          <select name="correct_choice" required>
-            <option value="">Choose</option>
-            <option value="A">A</option>
-            <option value="B">B</option>
-            <option value="C">C</option>
-            <option value="D">D</option>
-          </select>
-        </label>
         <button type="submit" class="btn btn-primary">Add Question</button>
-      </form>
+    </form>
     </section>
-  </section>
+
+    <a href="{{ url_for('tests') }}" class="btn btn-primary" style="text-align: center;">Back to Tests</a>
+</section>
 {% endblock %}
