@@ -610,5 +610,17 @@ def update_grade(test_id, student_id):
 
     return redirect(url_for('responses', test_id=test_id))
 
+
+@app.route('/reset-db', methods=['POST'])
+def reset_db():
+    with engine.connect() as conn:
+        # Drop the database
+        conn.execute(text("DROP DATABASE IF EXISTS testapp"))
+        conn.commit()
+        flash('Database reset successfully. Please restart server to reinitialize.', 'success')
+    
+    return redirect(url_for('index'))
+
+
 if __name__ == '__main__':
     app.run(debug=True)
