@@ -96,14 +96,21 @@ def get_teachers():
 
 def get_person(person_id):
     query = text("""
-        SELECT acct_id, name
+        SELECT acct_id, name, is_teacher
         FROM accounts
         WHERE acct_id = :person_id
     """)
     with engine.connect() as conn:
         row = conn.execute(query, {"person_id": person_id}).mappings().first()
 
-    return row.all() if row else None
+    if not row:
+        return None
+    
+    return SimpleNamespace(
+        id=row["acct_id"],
+        name=row["name"],
+        role="teacher" if row["is_teacher"] else "student"
+    )
 
 def get_all_tests():
     query = text("""
@@ -123,12 +130,19 @@ def get_all_tests():
             role="teacher"
         ) if row["teacher_id"] else None
 
-        tests.append(SimpleNamespace(
+        test_obj = SimpleNamespace(
             id=row["test_id"],
             title=row["title"],
             teacher_id=row["teacher_id"],
             teacher=teacher
-        ))
+        )
+
+        test_obj.questions = get_questions_for_test(row["test_id"])
+        test_obj.responses = get_responses_for_test(row["test_id"])
+
+        
+
+        tests.append(test_obj)
     return tests
 
 def get_test_obj(test_id):
@@ -173,38 +187,40 @@ def get_questions_for_test(test_id):
             id=row["q_number"],      # use q_number as the id in templates
             test_id=row["test_id"],
             q_number=row["q_number"],
-            text=row["q_txt"]
+            q_txt=row["q_txt"]
         ))
     return questions
 
 def get_responses_for_test(test_id):
     query = text("""
-        SELECT r.response_id, r.student_id, r.submitted_at, r.grade, a.name AS student_name
-        FROM responses r
-        LEFT JOIN accounts a ON r.student_id = a.acct_id
-        WHERE r.test_id = :test_id
-        ORDER BY r.submitted_at DESC
+        SELECT a.student_id, acc.name AS student_name, g.grade
+        FROM answers a
+        JOIN accounts acc ON a.student_id = acc.acct_id
+        LEFT JOIN grades g on g.test_id = a.test_id AND g.student_id = a.student_id
+        WHERE a.test_id = :test_id
+        GROUP BY a.test_id, a.student_id, acc.name, g.grade
+        ORDER BY acc.name
     """)
     with engine.connect() as conn:
         rows = conn.execute(query, {"test_id": test_id}).mappings().all()
 
-    responses = []
+    answers = []
     for row in rows:
         student = SimpleNamespace(
             id=row["student_id"],
             name=row["student_name"],
             role="student"
-        ) if row["student_id"] else None
+        )
 
-        responses.append(SimpleNamespace(
-            id=row["response_id"],
-            test_id=test_id,
-            student_id=row["student_id"],
-            student=student,
-            submitted_at=row["submitted_at"],
-            grade=row["grade"]
-        ))
-    return responses
+        answers.append({
+            "response": SimpleNamespace(
+                test_id=test_id,
+                student_id=row["student_id"],
+                student=student
+            ),
+            "grade": row["grade"] if row["grade"] is not None else "Ungraded"
+        })
+    return answers
 
 def get_response(test_id, student_id):
     query = text("""
@@ -241,7 +257,7 @@ def get_grade_for(test_id, student_id):
 def get_question(test_id, q_number):
     questions = get_questions_for_test(test_id)
 
-    question = next((q for q in questions if q["q_number"] == q_number), None)
+    question = next((q for q in questions if q.q_number == q_number), None)
 
     return question
 
@@ -265,12 +281,12 @@ def register():
             flash('Name and role are required.', 'error')
             return redirect(url_for('register'))
 
-        user = {"name":name, "role": "TRUE" if role=="teacher" else "FALSE"}
+        user = {"name":name, "role": True if role=="teacher" else False}
         with engine.connect() as conn:
             query = f"""INSERT INTO accounts(name, is_teacher)
-                        VALUES(":name", :role)"""
+                        VALUES(:name, :role)"""
             conn.execute(text(query), user)
-            conn.commit
+            conn.commit()
 
         flash(f'{role.title()} registered successfully.', 'success')
         return redirect(url_for('accounts'))
@@ -334,11 +350,15 @@ def edit_test(test_id):
         test.title = request.form.get('title').strip()
         test.teacher_id = int(request.form.get('teacher_id'))
         with engine.connect() as conn:
-            query = """"
+            query = """
                 UPDATE tests
                 SET title = :title, teacher_id = :teacher_id
                 WHERE test_id = :test_id"""
-            conn.execute(text(query), test)
+            conn.execute(text(query), 
+                {"title": test.title, 
+                "teacher_id": test.teacher_id, 
+                "test_id": test.id})
+            conn.commit()
         flash('Test updated successfully.', 'success')
         return redirect(url_for('tests'))
 
@@ -429,15 +449,17 @@ def edit_question(test_id, q_number):
         question.text = text
 
         with engine.connect() as conn:
-            query = """"
+            query = """
                 UPDATE questions
                 SET q_txt = :q_txt
                 WHERE test_id = :test_id AND q_number = :q_number"""
-            conn.execute(text(query), question)
+            conn.execute(text(query), {
+                "q_txt": text, 
+                "test_id": test_id, 
+                "q_number": q_number})
             conn.commit()
         flash('Question updated successfully.', 'success')
 
-        flash('Question updated.', 'success')
         return redirect(url_for('test_editor', test_id=test_id))
 
     return render_template('edit_question.html', test_id=test_id, question=question)
@@ -446,9 +468,8 @@ def edit_question(test_id, q_number):
 @app.route('/take-test', methods=['GET', 'POST'])
 def take_test_select():
     students = get_students()
-    if not students:
-        students = [get_user(u['acct_id']) for u in get_all_users() if not u['isTeacher']]
     tests_list = get_all_tests()
+
     if request.method == 'POST':
         student_id = request.form.get('student_id')
         test_id = request.form.get('test_id')
@@ -470,14 +491,23 @@ def take_test(test_id, student_id):
         if not questions:
             flash('No questions to take.', 'error')
             return redirect(url_for('take_test_select'))
+        
+        if not student or student.role != 'student':
+            flash('Invalid student selected.', 'error')
+            return redirect(url_for('take_test_select'))
+        
+        if not test_obj:
+            flash('Invalid test selected.', 'error')
+            return redirect(url_for('take_test_select'))
 
         with engine.connect() as conn:
             for question in questions:
                 submitted_text = request.form.get(f"q_{question.q_number}", "").strip()
 
-                conn.execute(text("""
+                conn.execute(text(""" 
                     INSERT INTO answers(test_id, q_number, student_id, answer)
                     VALUES(:test_id, :q_number, :student_id, :answer)
+                    ON DUPLICATE KEY UPDATE answer = :answer
                 """), {
                     "test_id": test_id,
                     "q_number": question.q_number,
@@ -513,27 +543,21 @@ def response_detail(test_id, student_id):
         flash('Student not found.', 'error')
         return redirect(url_for('responses', test_id=test_id))
 
-    response = get_response(test_id, student_id)
-    if response:
-        answers = response.answers
-        grade = calculate_grade(response)
-        return render_template('response_detail.html', test=selected_test, student=student, response=response, answers=answers, grade=grade)
-
     answers = get_response(test_id, student_id)
     if not answers:
         flash('No response found for this student/test.', 'error')
         return redirect(url_for('responses', test_id=test_id))
 
-    fake_answer_objects = []
+    answers_object = []
     for a in answers:
-        question = next((q for q in get_questions_for_test(test_id) if q.q_number == a['q_number']), None)
+        question = next((q for q in get_questions_for_test(test_id) if q.q_number == a.q_number), None)
         if question is not None:
             
-            fake_answer_objects.append(SimpleNamespace(question=question, content=a['answer']))
+            answers_object.append(SimpleNamespace(question=question, content=a.answer))
 
     grade = get_grade_for(test_id, student_id) or 0
-    fake_response = SimpleNamespace(test_id=test_id, student_id=student_id, submitted_at=datetime.now(), answers=fake_answer_objects)
-    return render_template('response_detail.html', test=selected_test, student=student, response=fake_response, answers=fake_answer_objects, grade=grade)
+    response = SimpleNamespace(test_id=test_id, student_id=student_id, answers=answers_object)
+    return render_template('response_detail.html', test=selected_test, student=student, response=response, answers=answers_object, grade=grade)
 
 
 @app.route('/students')
@@ -567,18 +591,24 @@ def student_detail(student_id):
 
 @app.route('/update_grade/<int:test_id>/<int:student_id>', methods=['POST'])
 def update_grade(test_id, student_id):
-    response = get_response(test_id, student_id)
     new_grade = request.form.get('grade')
+
     if new_grade:
-        response.grade = new_grade
-        with engine.connect as conn:
+        with engine.connect() as conn:
             conn.execute(text("""
-                UPDATE grades
-                SET grade = :new_grade
-                WHERE test_id = :test_id AND student_id = :student_id
-                """), response)
+                INSERT INTO grades(test_id, student_id, grade)
+                VALUES(:test_id, :student_id, :grade)
+                ON DUPLICATE KEY UPDATE grade = :grade
+            """), {
+                "test_id": test_id,
+                "student_id": student_id,
+                "grade": int(new_grade)
+            })
+            conn.commit()
+
         flash('Grade updated!', 'success')
-    return redirect(url_for('responses', test_id=response.test_id))
+
+    return redirect(url_for('responses', test_id=test_id))
 
 if __name__ == '__main__':
     app.run(debug=True)

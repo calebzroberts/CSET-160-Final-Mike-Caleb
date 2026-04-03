@@ -18,13 +18,12 @@
   {% if selected_test %}
     <h3>Students who took {{ selected_test.title }}</h3>
     <table class="data-table">
-      <thead><tr><th>Name</th><th>Submitted At</th><th>Grade</th><th>Answers</th></tr></thead>
+      <thead><tr><th>Name</th><th>Grade</th><th>Answers</th></tr></thead>
       <tbody>
         {% if response_items %}
           {% for item in response_items %}
           <tr>
             <td>{{ item.response.student.name }}</td>
-            <td>{{ item.response.submitted_at.strftime('%Y-%m-%d %H:%M') }}</td>
             <td>
               <div id="display-{{ item.response.id }}">
                   <span>{{ item.grade }}</span>
