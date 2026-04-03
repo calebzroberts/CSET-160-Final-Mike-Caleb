@@ -206,7 +206,7 @@ def get_responses_for_test(test_id):
         ))
     return responses
 
-def get_answers_for(test_id, student_id):
+def get_response(test_id, student_id):
     query = text("""
         SELECT a.test_id, a.q_number, a.answer
         FROM answers a
@@ -238,24 +238,12 @@ def get_grade_for(test_id, student_id):
         ).mappings().first()
     return row['grade'] if row else None
 
-def get_question(question_id):
-    query = text("""
-        SELECT test_id, q_number, q_txt
-        FROM questions
-        WHERE q_number = :question_id
-    """)
-    with engine.connect() as conn:
-        row = conn.execute(query, {"question_id": question_id}).mappings().first()
+def get_question(test_id, q_number):
+    questions = get_questions_for_test(test_id)
 
-    if not row:
-        return None
+    question = next((q for q in questions if q["q_number"] == q_number), None)
 
-    return SimpleNamespace(
-        id=row["q_number"],
-        test_id=row["test_id"],
-        q_number=row["q_number"],
-        text=row["q_txt"]
-    )
+    return question
 
 
 def calculate_grade(response):
@@ -426,9 +414,9 @@ def delete_question(test_id, q_number):
     return redirect(url_for('test_editor', test_id=test_id))
 
 
-@app.route('/tests/<int:test_id>/questions/<int:question_id>/edit', methods=['GET', 'POST'])
-def edit_question(test_id, question_id):
-    question = get_question(question_id)
+@app.route('/tests/<int:test_id>/questions/<int:q_number>/edit', methods=['GET', 'POST'])
+def edit_question(test_id, q_number):
+    question = get_question(test_id, q_number)
     if not question:
         flash('Question not found.', 'error')
         return redirect(url_for('test_editor', test_id=test_id))
@@ -438,11 +426,17 @@ def edit_question(test_id, question_id):
         if not text:
             flash('Question text is required.', 'error')
             return redirect(url_for('test_editor', test_id=test_id))
-        
-        # CHANGE: Update the existing question object instead of creating a new one
         question.text = text
-        db.session.commit()
-        
+
+        with engine.connect() as conn:
+            query = """"
+                UPDATE questions
+                SET q_txt = :q_txt
+                WHERE test_id = :test_id AND q_number = :q_number"""
+            conn.execute(text(query), question)
+            conn.commit()
+        flash('Question updated successfully.', 'success')
+
         flash('Question updated.', 'success')
         return redirect(url_for('test_editor', test_id=test_id))
 
@@ -507,7 +501,7 @@ def responses():
     if test_id:
         selected_test = get_test_obj(test_id)
         if selected_test:
-            response_items = get_questions_for_test(test_id)
+            response_items = get_responses_for_test(test_id)
     return render_template('responses.html', tests=tests_list, selected_test=selected_test, response_items=response_items)
 
 
@@ -519,13 +513,13 @@ def response_detail(test_id, student_id):
         flash('Student not found.', 'error')
         return redirect(url_for('responses', test_id=test_id))
 
-    response = Response.query.filter_by(test_id=test_id, student_id=student_id).order_by(Response.submitted_at.desc()).first()
+    response = get_response(test_id, student_id)
     if response:
         answers = response.answers
         grade = calculate_grade(response)
         return render_template('response_detail.html', test=selected_test, student=student, response=response, answers=answers, grade=grade)
 
-    answers = get_answers_for(test_id, student_id)
+    answers = get_response(test_id, student_id)
     if not answers:
         flash('No response found for this student/test.', 'error')
         return redirect(url_for('responses', test_id=test_id))
@@ -554,19 +548,35 @@ def student_detail(student_id):
     if not student:
         flash('Student not found.', 'error')
         return redirect(url_for('students'))
-    responses_list = Response.query.filter_by(student_id=student_id).all()
+
     summary = []
-    for r in responses_list:
-        summary.append({'test': r.test, 'grade': calculate_grade(r), 'submitted_at': r.submitted_at})
+
+    for test in get_all_tests():
+        responses = get_responses_for_test(test.id)
+
+        for item in responses:
+            response = item["response"]
+
+            if response.student_id == student_id:
+                summary.append({
+                    "test": test,
+                    "grade": item["grade"]
+                })
+
     return render_template('student_detail.html', student=student, summary=summary)
 
-@app.route('/update_grade/<int:response_id>', methods=['POST'])
-def update_grade(response_id):
-    response = Response.query.get_or_404(response_id)
+@app.route('/update_grade/<int:test_id>/<int:student_id>', methods=['POST'])
+def update_grade(test_id, student_id):
+    response = get_response(test_id, student_id)
     new_grade = request.form.get('grade')
     if new_grade:
         response.grade = new_grade
-        db.session.commit()
+        with engine.connect as conn:
+            conn.execute(text("""
+                UPDATE grades
+                SET grade = :new_grade
+                WHERE test_id = :test_id AND student_id = :student_id
+                """), response)
         flash('Grade updated!', 'success')
     return redirect(url_for('responses', test_id=response.test_id))
 

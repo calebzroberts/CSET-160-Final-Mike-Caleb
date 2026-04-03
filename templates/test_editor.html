@@ -12,10 +12,10 @@
     <ul class="question-list">
         {% for q in test.questions %}
         <li class="question-item">
-        <strong>{{ loop.index }}. {{ q.text }}</strong>
+        <strong>{{ loop.index }}. {{ q.q_txt }}</strong>
         <div class="question-actions">
-            <a href="{{ url_for('edit_question', test_id=test.id, question_id=q.id) }}" class="btn btn-secondary">Edit</a>
-            <form action="{{ url_for('delete_question', test_id=test.id, question_id=q.id) }}" method="post" class="inline-form">
+            <a href="{{ url_for('edit_question', test_id=test.id, q_number=q.q_number) }}" class="btn btn-secondary">Edit</a>
+            <form action="{{ url_for('delete_question', test_id=test.id, q_number=q.q_number) }}" method="post" class="inline-form">
             <button type="submit" class="btn btn-danger">Delete</button>
             </form>
         </div>
