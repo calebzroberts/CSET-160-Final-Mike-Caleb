@@ -277,9 +277,13 @@ def register():
             flash('Name and role are required.', 'error')
             return redirect(url_for('register'))
 
-        user = User(name=name, role=role)
-        db.session.add(user)
-        db.session.commit()
+        user = {"name":name, "role": "TRUE" if role=="teacher" else "FALSE"}
+        with engine.connect() as conn:
+            query = f"""INSERT INTO accounts(name, is_teacher)
+                        VALUES(":name", :role)"""
+            conn.execute(text(query), user)
+            conn.commit
+
         flash(f'{role.title()} registered successfully.', 'success')
         return redirect(url_for('accounts'))
 
@@ -341,7 +345,12 @@ def edit_test(test_id):
     if request.method == 'POST':
         test.title = request.form.get('title').strip()
         test.teacher_id = int(request.form.get('teacher_id'))
-        db.session.commit()
+        with engine.connect() as conn:
+            query = """"
+                UPDATE tests
+                SET title = :title, teacher_id = :teacher_id
+                WHERE test_id = :test_id"""
+            conn.execute(text(query), test)
         flash('Test updated successfully.', 'success')
         return redirect(url_for('tests'))
 
@@ -498,11 +507,7 @@ def responses():
     if test_id:
         selected_test = get_test_obj(test_id)
         if selected_test:
-            db_responses = Response.query.filter_by(test_id=test_id).order_by(Response.submitted_at.desc()).all()
-            if db_responses:
-                response_items = [{'response': r, 'grade': calculate_grade(r)} for r in db_responses]
-            else:
-                response_items = [{'response': r, 'grade': get_grade_for(test_id, r.student_id) or 0} for r in get_responses_for_test(test_id)]
+            response_items = get_questions_for_test(test_id)
     return render_template('responses.html', tests=tests_list, selected_test=selected_test, response_items=response_items)
 
 
