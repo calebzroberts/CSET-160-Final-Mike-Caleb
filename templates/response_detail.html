@@ -15,5 +15,7 @@
 			</tbody>
 		</table>
 		<p><strong>Grade:</strong> {{ grade }}</p>
+
+		<a href="{{ url_for('student_detail', student_id=student.id) }}" class="btn btn-secondary">Back to Student Summary</a>
 	</section>
 {% endblock %}
