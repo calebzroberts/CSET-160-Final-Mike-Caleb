@@ -25,15 +25,15 @@
           <tr>
             <td>{{ item.response.student.name }}</td>
             <td>
-              <div id="display-{{ item.response.id }}">
+              <div id="display-{{ loop.index0 }}">
                   <span>{{ item.grade }}</span>
-                  <button class="link-btn" onclick="toggleEdit('{{ item.response.id }}')">Edit</button>
+                  <button class="link-btn" onclick="toggleEdit('{{ loop.index0 }}')">Edit</button>
               </div>
               
-              <form id="edit-{{ item.response.id }}" method="POST" action="{{ url_for('update_grade', test_id=item.response.test_id, student_id=item.response.student_id) }}" style="display:none;">
+              <form id="edit-{{ loop.index0 }}" method="POST" action="{{ url_for('update_grade', test_id=item.response.test_id, student_id=item.response.student_id) }}" style="display:none;">
                   <input type="text" name="grade" value="{{ item.grade }}" style="width: 80px; border-radius: 0;">
                   <button type="submit" class="link-btn btn-confirm" >Confirm</button>
-                  <button type="button" class="link-btn btn-danger" onclick="toggleEdit('{{ item.response.id }}')">Cancel</button>
+                  <button type="button" class="link-btn btn-danger" onclick="toggleEdit('{{ loop.index0 }}')">Cancel</button>
               </form>
             </td>
             <td><a class="link-btn" href="{{ url_for('response_detail', test_id=selected_test.id, student_id=item.response.student.id) }}">View</a></td>

@@ -593,21 +593,33 @@ def student_detail(student_id):
 def update_grade(test_id, student_id):
     new_grade = request.form.get('grade')
 
-    if new_grade:
-        with engine.connect() as conn:
-            conn.execute(text("""
-                INSERT INTO grades(test_id, student_id, grade)
-                VALUES(:test_id, :student_id, :grade)
-                ON DUPLICATE KEY UPDATE grade = :grade
-            """), {
-                "test_id": test_id,
-                "student_id": student_id,
-                "grade": int(new_grade)
-            })
-            conn.commit()
+    if not new_grade:
+        flash('Grade is required.', 'error')
+        return redirect(url_for('responses', test_id=test_id))
 
-        flash('Grade updated!', 'success')
+    try:
+        grade_val = int(new_grade)
+    except ValueError:
+        flash('Grade must be a number.', 'error')
+        return redirect(url_for('responses', test_id=test_id))
 
+    if grade_val < 0 or grade_val > 100:
+        flash('Grade must be between 0 and 100.', 'error')
+        return redirect(url_for('responses', test_id=test_id))
+
+    with engine.connect() as conn:
+        conn.execute(text("""
+            INSERT INTO grades(test_id, student_id, grade)
+            VALUES(:test_id, :student_id, :grade)
+            ON DUPLICATE KEY UPDATE grade = :grade
+        """), {
+            "test_id": test_id,
+            "student_id": student_id,
+            "grade": grade_val
+        })
+        conn.commit()
+
+    flash('Grade updated!', 'success')
     return redirect(url_for('responses', test_id=test_id))
 
 
