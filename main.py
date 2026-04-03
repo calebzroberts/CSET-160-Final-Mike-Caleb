@@ -34,7 +34,6 @@ def get_all_users():
         users.append(SimpleNamespace(
             id=row["acct_id"],
             name=row["name"],
-            email="",  # dbmaker schema does not have email
             role="teacher" if row["is_teacher"] else "student"
         ))
     return users
@@ -54,7 +53,6 @@ def get_user(acct_id):
     return SimpleNamespace(
         id=row["acct_id"],
         name=row["name"],
-        email="",
         role="teacher" if row["is_teacher"] else "student"
     )
 
@@ -73,7 +71,6 @@ def get_all_tests():
         teacher = SimpleNamespace(
             id=row["teacher_id"],
             name=row["teacher_name"],
-            email="",
             role="teacher"
         ) if row["teacher_id"] else None
 
@@ -101,7 +98,6 @@ def get_test_obj(test_id):
     teacher = SimpleNamespace(
         id=row["teacher_id"],
         name=row["teacher_name"],
-        email="",
         role="teacher"
     ) if row["teacher_id"] else None
 
@@ -153,14 +149,13 @@ def index():
 def register():
     if request.method == 'POST':
         name = request.form.get('name').strip()
-        email = request.form.get('email').strip()
         role = request.form.get('role')
 
-        if not name or not email or not role:
-            flash('Name, email, and role are required.', 'error')
+        if not name or not role:
+            flash('Name and role are required.', 'error')
             return redirect(url_for('register'))
 
-        user = User(name=name, email=email, role=role)
+        user = User(name=name, role=role)
         db.session.add(user)
         db.session.commit()
         flash(f'{role.title()} registered successfully.', 'success')
