@@ -442,7 +442,7 @@ def edit_question(test_id, q_number):
         return redirect(url_for('test_editor', test_id=test_id))
     
     if request.method == 'POST':
-        text = request.form.get('text', '').strip()
+        q_txt = request.form.get('text', '').strip()
         if not text:
             flash('Question text is required.', 'error')
             return redirect(url_for('test_editor', test_id=test_id))
@@ -454,7 +454,7 @@ def edit_question(test_id, q_number):
                 SET q_txt = :q_txt
                 WHERE test_id = :test_id AND q_number = :q_number"""
             conn.execute(text(query), {
-                "q_txt": text, 
+                "q_txt": q_txt, 
                 "test_id": test_id, 
                 "q_number": q_number})
             conn.commit()
@@ -476,6 +476,15 @@ def take_test_select():
         if not student_id or not test_id:
             flash('Select both student and test.', 'error')
             return redirect(url_for('take_test_select'))
+
+        elif get_response(test_id, student_id):
+            student_id = int(student_id)
+            test_id = int(test_id)
+            student = next((s for s in students if s.id == student_id), None)
+            name = student.name
+            flash(f'{name} has already taken the test!', 'error')
+            return redirect(url_for('take_test_select'))
+
         return redirect(url_for('take_test', test_id=int(test_id), student_id=int(student_id)))
 
     return render_template('take_test_select.html', students=students, tests=tests_list)
