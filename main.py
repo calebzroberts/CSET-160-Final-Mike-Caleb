@@ -56,6 +56,55 @@ def get_user(acct_id):
         role="teacher" if row["is_teacher"] else "student"
     )
 
+def get_students():
+    query = text("""
+        SELECT acct_id, name
+        FROM accounts
+        WHERE is_teacher = FALSE
+        ORDER BY acct_id
+    """)
+    with engine.connect() as conn:
+        rows = conn.execute(query).mappings().all()
+
+    students = []
+    for row in rows:
+        students.append(SimpleNamespace(
+            id=row["acct_id"],
+            name=row["name"],
+            role="student"
+        ))
+    return students
+
+def get_teachers():
+    query = text("""
+        SELECT acct_id, name
+        FROM accounts
+        WHERE is_teacher = TRUE
+        ORDER BY acct_id
+    """)
+    with engine.connect() as conn:
+        rows = conn.execute(query).mappings().all()
+
+    teachers = []
+    for row in rows:
+        teachers.append(SimpleNamespace(
+            id=row["acct_id"],
+            name=row["name"],
+            role="teacher"
+        ))
+    return teachers
+
+def get_person(person_id):
+    query = text("""
+        SELECT acct_id, name
+        FROM accounts
+        WHERE acct_id = :person_id
+    """)
+    with engine.connect() as conn:
+        row = conn.execute(query, {"person_id": person_id}).mappings().first()
+
+    return row.all() if row else None
+
 def get_all_tests():
     query = text("""
         SELECT t.test_id, t.title, t.teacher_id, a.name AS teacher_name
@@ -128,12 +177,85 @@ def get_questions_for_test(test_id):
         ))
     return questions
 
+def get_responses_for_test(test_id):
+    query = text("""
+        SELECT r.response_id, r.student_id, r.submitted_at, r.grade, a.name AS student_name
+        FROM responses r
+        LEFT JOIN accounts a ON r.student_id = a.acct_id
+        WHERE r.test_id = :test_id
+        ORDER BY r.submitted_at DESC
+    """)
+    with engine.connect() as conn:
+        rows = conn.execute(query, {"test_id": test_id}).mappings().all()
+
+    responses = []
+    for row in rows:
+        student = SimpleNamespace(
+            id=row["student_id"],
+            name=row["student_name"],
+            role="student"
+        ) if row["student_id"] else None
+
+        responses.append(SimpleNamespace(
+            id=row["response_id"],
+            test_id=test_id,
+            student_id=row["student_id"],
+            student=student,
+            submitted_at=row["submitted_at"],
+            grade=row["grade"]
+        ))
+    return responses
+
+def get_answers_for(test_id, student_id):
+    query = text("""
+        SELECT a.test_id, a.q_number, a.answer
+        FROM answers a
+        WHERE a.test_id = :test_id AND a.student_id = :student_id
+        ORDER BY a.q_number
+    """)
+    with engine.connect() as conn:
+        rows = conn.execute(query, {"test_id": test_id, "student_id": student_id}).mappings().all()
+
+    answers = []
+    for row in rows:
+        answers.append(SimpleNamespace(
+            test_id=row["test_id"],
+            q_number=row["q_number"],
+            answer=row["answer"]
+        ))
+    return answers
+
 
 def get_grade_for(test_id, student_id):
-    g = next((x for x in MOCK_GRADES if x['test_id'] == test_id and x['student_id'] == student_id), None)
-    if g:
-        return g['grade']
-    return None
+    with engine.connect() as conn:
+        row = conn.execute(
+            text("""
+                SELECT grade
+                FROM grades
+                WHERE test_id = :test_id AND student_id = :student_id
+            """),
+            {"test_id": test_id, "student_id": student_id}
+        ).mappings().first()
+    return row['grade'] if row else None
+
+def get_question(question_id):
+    query = text("""
+        SELECT test_id, q_number, q_txt
+        FROM questions
+        WHERE q_number = :question_id
+    """)
+    with engine.connect() as conn:
+        row = conn.execute(query, {"question_id": question_id}).mappings().first()
+
+    if not row:
+        return None
+
+    return SimpleNamespace(
+        id=row["q_number"],
+        test_id=row["test_id"],
+        q_number=row["q_number"],
+        text=row["q_txt"]
+    )
 
 
 def calculate_grade(response):
@@ -210,8 +332,12 @@ def create_test():
 
 @app.route('/tests/<int:test_id>/edit', methods=['GET', 'POST'])
 def edit_test(test_id):
-    test = Test.query.get_or_404(test_id)
-    teachers = User.query.filter_by(role='teacher').all()
+    test=get_test_obj(test_id)
+    if not test:
+        flash('Test not found.', 'error')
+        return redirect(url_for('tests'))
+    
+    teachers = get_teachers()
     if request.method == 'POST':
         test.title = request.form.get('title').strip()
         test.teacher_id = int(request.form.get('teacher_id'))
@@ -293,7 +419,11 @@ def delete_question(test_id, q_number):
 
 @app.route('/tests/<int:test_id>/questions/<int:question_id>/edit', methods=['GET', 'POST'])
 def edit_question(test_id, question_id):
-    question = Question.query.get_or_404(question_id)
+    question = get_question(question_id)
+    if not question:
+        flash('Question not found.', 'error')
+        return redirect(url_for('test_editor', test_id=test_id))
+    
     if request.method == 'POST':
         text = request.form.get('text', '').strip()
         if not text:
@@ -312,9 +442,9 @@ def edit_question(test_id, question_id):
 
 @app.route('/take-test', methods=['GET', 'POST'])
 def take_test_select():
-    students = User.query.filter_by(role='student').all()
+    students = get_students()
     if not students:
-        students = [get_mock_user(u['acct_id']) for u in get_all_users() if not u['isTeacher']]
+        students = [get_user(u['acct_id']) for u in get_all_users() if not u['isTeacher']]
     tests_list = get_all_tests()
     if request.method == 'POST':
         student_id = request.form.get('student_id')
@@ -329,8 +459,16 @@ def take_test_select():
 
 @app.route('/take-test/<int:test_id>/<int:student_id>', methods=['GET', 'POST'])
 def take_test(test_id, student_id):
-    student = User.query.filter_by(id=student_id, role='student').first_or_404()
-    test_obj = Test.query.get_or_404(test_id)
+    student = get_person(student_id)
+    if not student:
+        flash('Student not found.', 'error')
+        return redirect(url_for('take_test_select'))
+    
+    test_obj = get_test_obj(test_id)
+    if not test_obj:
+        flash('Test not found.', 'error')
+        return redirect(url_for('take_test_select'))
+    
     questions = Question.query.filter_by(test_id=test_id).all()
 
     if request.method == 'POST':
@@ -368,28 +506,32 @@ def responses():
             if db_responses:
                 response_items = [{'response': r, 'grade': calculate_grade(r)} for r in db_responses]
             else:
-                response_items = [{'response': r, 'grade': get_grade_for(test_id, r.student_id) or 0} for r in get_mock_responses_for_test(test_id)]
+                response_items = [{'response': r, 'grade': get_grade_for(test_id, r.student_id) or 0} for r in get_responses_for_test(test_id)]
     return render_template('responses.html', tests=tests_list, selected_test=selected_test, response_items=response_items)
 
 
 @app.route('/responses/test/<int:test_id>/student/<int:student_id>')
 def response_detail(test_id, student_id):
-    selected_test = Test.query.get_or_404(test_id)
-    student = User.query.filter_by(id=student_id, role='student').first_or_404()
+    selected_test = get_test_obj(test_id)
+    student = get_person(student_id)
+    if not student:
+        flash('Student not found.', 'error')
+        return redirect(url_for('responses', test_id=test_id))
+
     response = Response.query.filter_by(test_id=test_id, student_id=student_id).order_by(Response.submitted_at.desc()).first()
     if response:
         answers = response.answers
         grade = calculate_grade(response)
         return render_template('response_detail.html', test=selected_test, student=student, response=response, answers=answers, grade=grade)
 
-    mock_answers = get_answers_for(test_id, student_id)
-    if not mock_answers:
+    answers = get_answers_for(test_id, student_id)
+    if not answers:
         flash('No response found for this student/test.', 'error')
         return redirect(url_for('responses', test_id=test_id))
 
     fake_answer_objects = []
-    for a in mock_answers:
-        question = next((q for q in get_mock_questions(test_id) if q.q_number == a['q_number']), None)
+    for a in answers:
+        question = next((q for q in get_questions_for_test(test_id) if q.q_number == a['q_number']), None)
         if question is not None:
             
             fake_answer_objects.append(SimpleNamespace(question=question, content=a['answer']))
@@ -401,13 +543,16 @@ def response_detail(test_id, student_id):
 
 @app.route('/students')
 def students():
-    students = User.query.filter_by(role='student').all()
+    students = get_students()
     return render_template('students.html', students=students)
 
 
 @app.route('/students/<int:student_id>')
 def student_detail(student_id):
-    student = User.query.filter_by(id=student_id, role='student').first_or_404()
+    student = get_person(student_id)
+    if not student:
+        flash('Student not found.', 'error')
+        return redirect(url_for('students'))
     responses_list = Response.query.filter_by(student_id=student_id).all()
     summary = []
     for r in responses_list:
