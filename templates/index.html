@@ -5,6 +5,9 @@
     <h2>Tests Dashboard</h2>
     <a href="/tests" class="btn btn-secondary">View Tests</a>
     <a href="/accounts" class="btn btn-secondary">View Accounts</a>
-    
+
+    <form method="POST" action="{{ url_for('reset_db') }}" style="margin-top: 20px;">
+        <button type="submit" class="btn btn-danger">Reset Database</button>
+    </form> 
 </section>
 {% endblock %}
