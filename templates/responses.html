@@ -31,7 +31,7 @@
                   <button class="link-btn" onclick="toggleEdit('{{ item.response.id }}')">Edit</button>
               </div>
               
-              <form id="edit-{{ item.response.id }}" method="POST" action="{{ url_for('update_grade', response_id=item.response.id) }}" style="display:none;">
+              <form id="edit-{{ item.response.id }}" method="POST" action="{{ url_for('update_grade', test_id=item.response.test_id, student_id=item.response.student_id) }}" style="display:none;">
                   <input type="text" name="grade" value="{{ item.grade }}" style="width: 80px; border-radius: 0;">
                   <button type="submit" class="link-btn btn-confirm" >Confirm</button>
                   <button type="button" class="link-btn btn-danger" onclick="toggleEdit('{{ item.response.id }}')">Cancel</button>

@@ -4,7 +4,7 @@
 	<section class="panel">
 		<h2>Edit Question</h2>
 		<form method="post" class="form-grid">
-			<label>Question text<textarea name="text" rows="3" required>{{ question.text }}</textarea></label>
+			<label>Question text<textarea name="text" rows="3" required>{{ question.q_txt }}</textarea></label>
 			<button type="submit" class="btn btn-primary">Save</button>
 			<a class="btn btn-secondary" href="{{ url_for('test_editor', test_id=test_id) }}">Back</a>
 		</form>
