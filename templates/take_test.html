@@ -8,7 +8,7 @@
 		{% for q in questions %}
 			<div class="test-card">
 			<h3>Q{{ loop.index }}: {{ q.q_txt }}</h3>
-			<label>Answer<textarea name="q_{{ q_number }}" rows="2"></textarea></label>
+			<label>Answer<textarea name="q_{{ q.q_number }}" rows="2"></textarea></label>
 			</div>
 		{% else %}
 			<p>No questions in this test yet.</p>
