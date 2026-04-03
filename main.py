@@ -459,35 +459,31 @@ def take_test_select():
 
 @app.route('/take-test/<int:test_id>/<int:student_id>', methods=['GET', 'POST'])
 def take_test(test_id, student_id):
-    student = get_person(student_id)
-    if not student:
-        flash('Student not found.', 'error')
-        return redirect(url_for('take_test_select'))
-    
+    student = get_user(student_id)
     test_obj = get_test_obj(test_id)
-    if not test_obj:
-        flash('Test not found.', 'error')
-        return redirect(url_for('take_test_select'))
-    
-    questions = Question.query.filter_by(test_id=test_id).all()
+    questions = get_questions_for_test(test_id)
 
     if request.method == 'POST':
         if not questions:
             flash('No questions to take.', 'error')
             return redirect(url_for('take_test_select'))
 
-        response = Response(student_id=student.id, test_id=test_obj.id)
-        db.session.add(response)
-        db.session.commit()
+        with engine.connect() as conn:
+            for question in questions:
+                submitted_text = request.form.get(f"q_{question.q_number}", "").strip()
 
-        for question in questions:
-            submitted_text = request.form.get(f'q_{question.id}', '').strip()
-            answer = Answer(response_id=response.id, question_id=question.id, content=submitted_text)
-            db.session.add(answer)
+                conn.execute(text("""
+                    INSERT INTO answers(test_id, q_number, student_id, answer)
+                    VALUES(:test_id, :q_number, :student_id, :answer)
+                """), {
+                    "test_id": test_id,
+                    "q_number": question.q_number,
+                    "student_id": student_id,
+                    "answer": submitted_text
+                })
 
-        db.session.commit()
-
-        flash('Test submitted. Your grade: ' + str(calculate_grade(response)), 'success')
+            conn.commit()
+            
         return redirect(url_for('responses', test_id=test_id))
 
     return render_template('take_test.html', student=student, test=test_obj, questions=questions)
